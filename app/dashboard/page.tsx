@@ -13,14 +13,16 @@ export default async function DashboardPage() {
   const startOfDay = `${today}T00:00:00.000Z`;
   const endOfDay = `${today}T23:59:59.999Z`;
 
-  // Count services, business hours, and today's appointments
+  // Count services, business hours, professionals, and today's appointments
   const [
     { count: serviceCount },
     { count: hoursCount },
+    { count: profCount },
     { count: todayApptsCount },
   ] = await Promise.all([
     supabase.from('services').select('*', { count: 'exact', head: true }).eq('org_id', org.id),
     supabase.from('business_hours').select('*', { count: 'exact', head: true }).eq('org_id', org.id),
+    supabase.from('professionals').select('*', { count: 'exact', head: true }).eq('org_id', org.id),
     supabase
       .from('appointments')
       .select('*', { count: 'exact', head: true })
@@ -29,13 +31,19 @@ export default async function DashboardPage() {
       .lte('starts_at', endOfDay),
   ]);
 
-  const needsSetup = (serviceCount ?? 0) === 0 || (hoursCount ?? 0) === 0;
+  const hasServices = (serviceCount ?? 0) > 0;
+  const hasHours = (hoursCount ?? 0) > 0;
+  const hasProfessionals = (profCount ?? 0) > 0;
+  const needsSetup = !hasServices || !hasHours;
 
   return (
     <DashboardHomeClient
       orgName={org.name}
       slug={org.slug}
       needsSetup={needsSetup}
+      hasServices={hasServices}
+      hasHours={hasHours}
+      hasProfessionals={hasProfessionals}
       todayApptsCount={todayApptsCount ?? 0}
     />
   );

@@ -7,11 +7,17 @@ export default function DashboardHomeClient({
   orgName,
   slug,
   needsSetup,
+  hasServices,
+  hasHours,
+  hasProfessionals,
   todayApptsCount,
 }: {
   orgName: string;
   slug: string;
   needsSetup: boolean;
+  hasServices: boolean;
+  hasHours: boolean;
+  hasProfessionals: boolean;
   todayApptsCount: number;
 }) {
   const [copied, setCopied] = useState(false);
