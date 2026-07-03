@@ -1,0 +1,25 @@
+{
+  "backend": [
+    "NEW supabase/migrations/0008_schedule_blocks.sql: crear tabla schedule_blocks (id, org_id, professional_id nullable FK professionals ON DELETE CASCADE, block_date date, start_time time nullable, end_time time nullable, reason text nullable, created_at) con RLS igual al resto (select is_member, insert/update/delete is_admin); redefinir public_availability para EXCLUIR slots que solapen un schedule_block del org que aplique al profesional (professional_id null = todo el negocio) usando el patrón '(block_date || ' ' || time)::timestamp AT TIME ZONE 'America/Santiago' y, cuando start_time/end_time son null, bloquear el día completo; sin tocar migraciones previas ni la lógica de business_hours/breaks",
+    "NEW app/api/schedule-blocks/route.ts: GET (listar bloqueos vigentes del org, block_date >= hoy, con nombre de profesional) y POST (crear bloqueo(s): fecha o rango de fechas, todo el día o desde/hasta, professional_id opcional, motivo opcional) vía Supabase con RLS",
+    "NEW app/api/schedule-blocks/[id]/route.ts: DELETE para quitar un bloqueo",
+    "NEW app/api/schedule-blocks/conflicts/route.ts: GET que cuenta cuántas citas status='booked' existen en el rango/fechas bloqueadas (por profesional o todo el negocio) para advertir sin cancelar",
+    "EDIT app/dashboard/page.tsx: además de serviceCount/hoursCount, pasar flags hasServices y hasHours (y professionals si aplica) a DashboardHomeClient para el onboarding y la tarjeta de link"
+  ],
+  "frontend": [
+    "EDIT app/dashboard/DashboardHomeClient.tsx: reemplazar la sección simple de link por (a) asistente onboarding 'Deja tu agenda lista' con 3 pasos (Crear servicio, Definir horario, Compartir link) con check verde y botón directo cuando falte servicios u horario; (b) cuando los 3 pasos estén completos, mostrar la tarjeta 'Tu link de reservas' con URL (NEXT_PUBLIC_SITE_URL fallback origin), botón Copiar (feedback 'Copiado'), botón Compartir por WhatsApp (wa.me con texto pre-armado), QR generado sin dependencias pesadas y botón Descargar QR, más texto de guía corto; mobile-first, estados vacío/carga/error",
+    "NEW app/dashboard/horario/ScheduleBlocks.tsx: componente cliente 'Bloquear fechas' con mínimo de clicks: selector de fecha (o rango de fechas para vacaciones), checkbox 'Todo el día' marcado por defecto, al desmarcar selects acotados 07:00-20:00 en pasos de 30 min (desde/hasta), selector de profesional (o todo el negocio), motivo opcional; lista de bloqueos vigentes con botón Quitar; advertencia con cantidad de citas ya reservadas en el rango (sin cancelarlas); tooltips .help-tip, estados vacío/carga/error",
+    "EDIT app/dashboard/horario/page.tsx: renderizar el nuevo componente ScheduleBlocks debajo del HoursEditor",
+    "NEW lib/qr.ts: utilidad mínima de generación de QR (SVG propio) sin dependencias pesadas, usada por la tarjeta de link"
+  ],
+  "acceptance_criteria": [
+    "El dueño puede bloquear un día completo o un rango de horas, por profesional o para todo el negocio, con motivo opcional; los bloqueos vigentes se listan y se pueden quitar",
+    "Al crear un bloqueo se advierte cuántas citas ya reservadas caen en el rango, sin cancelarlas automáticamente",
+    "La disponibilidad pública (public_availability) excluye correctamente los horarios/días bloqueados respetando America/Santiago, sin romper business_hours ni breaks ni los casos existentes",
+    "El inicio del dashboard muestra una tarjeta 'Tu link de reservas' con URL pública (NEXT_PUBLIC_SITE_URL o origin), botón Copiar con feedback 'Copiado', botón Compartir por WhatsApp con texto pre-armado, QR del link y botón Descargar QR, más texto de guía",
+    "Cuando el negocio no tiene servicios o no tiene horario, el inicio muestra el asistente onboarding de 3 pasos con progreso y botones directos; al completar los 3, se reemplaza por la tarjeta de link",
+    "El asistente reutiliza las pantallas existentes de servicios y horario sin duplicar formularios",
+    "Las migraciones son solo incrementales nuevas (0008) sin modificar las anteriores; toda tabla referenciada existe y next permanece en ^14.2.35",
+    "UX: mínimo de clicks, defaults precargados, selects acotados 07:00-20:00 en pasos de 30 min, un solo botón primario por pantalla, tooltips .help-tip, estados vacío/carga/error y mobile-first"
+  ]
+}
