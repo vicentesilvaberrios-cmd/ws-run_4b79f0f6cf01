@@ -1,4 +1,5 @@
 import { HoursEditor } from './HoursEditor';
+import { ScheduleBlocks } from './ScheduleBlocks';
 
 export default function HorarioPage() {
   return (
@@ -10,6 +11,7 @@ export default function HorarioPage() {
         </p>
       </div>
       <HoursEditor />
+      <ScheduleBlocks />
     </div>
   );
 }

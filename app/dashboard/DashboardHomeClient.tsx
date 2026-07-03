@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getQrImageUrl, downloadQr } from '@/lib/qr';
 
 export default function DashboardHomeClient({
   orgName,
@@ -21,12 +22,15 @@ export default function DashboardHomeClient({
   todayApptsCount: number;
 }) {
   const [copied, setCopied] = useState(false);
+  const [qrError, setQrError] = useState(false);
   const [noShowCount, setNoShowCount] = useState<number | null>(null);
-  const [bookUrl, setBookUrl] = useState(`/book/${slug}`);
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
+  const bookUrl = siteUrl
+    ? `${siteUrl}/book/${slug}`
+    : (typeof window !== 'undefined' ? `${window.location.origin}/book/${slug}` : `/book/${slug}`);
 
   useEffect(() => {
-    setBookUrl(`${window.location.origin}/book/${slug}`);
-
     const today = new Date().toISOString().split('T')[0];
     fetch(`/api/appointments?date=${today}`)
       .then((r) => r.ok ? r.json() : [])
@@ -34,7 +38,7 @@ export default function DashboardHomeClient({
         setNoShowCount(Array.isArray(data) ? data.filter((a: { status: string }) => a.status === 'no_show').length : 0);
       })
       .catch(() => setNoShowCount(0));
-  }, [slug]);
+  }, []);
 
   const handleCopy = async () => {
     try {
@@ -42,20 +46,154 @@ export default function DashboardHomeClient({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback: select text
+      // Fallback: no clipboard available
     }
   };
+
+  const handleDownloadQr = async () => {
+    try {
+      setQrError(false);
+      await downloadQr(bookUrl, `qr-${slug}.png`);
+    } catch {
+      setQrError(true);
+    }
+  };
+
+  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Hola! Reservá tu cita en ${orgName} acá: ${bookUrl}`)}`;
+
+  // Steps completion
+  const stepsComplete = hasServices && hasHours;
 
   return (
     <div className="stack">
       <h1>Hola, {orgName}</h1>
 
+      {/* ONBOARDING — solo si falta configurar servicios u horario */}
       {needsSetup && (
-        <div className="alert alert-info">
-          Configura tus servicios y horario para empezar a recibir reservas.
+        <div className="card stack">
+          <h2 style={{ marginBottom: 0 }}>Dejá tu agenda lista</h2>
+          <p className="text-sm muted" style={{ marginTop: 0 }}>
+            Completá estos 3 pasos para empezar a recibir reservas online.
+          </p>
+
+          <ol className="steps stack gap-2" style={{ listStyle: 'none', padding: 0 }}>
+            {/* Step 1: Crear servicio */}
+            <li className="cluster gap-2" style={{ alignItems: 'flex-start' }}>
+              <span
+                className="cluster"
+                style={{
+                  width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                  background: hasServices ? 'var(--success, #22c55e)' : 'var(--surface-2)',
+                  color: hasServices ? '#fff' : 'var(--text-muted)',
+                  fontWeight: 700, justifyContent: 'center', fontSize: '0.85rem',
+                }}
+              >
+                {hasServices ? '✓' : '1'}
+              </span>
+              <div className="stack gap-0" style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600 }}>Crea tu primer servicio</span>
+                <span className="text-sm muted">Definí qué ofrecés, su duración y precio.</span>
+              </div>
+              {!hasServices && (
+                <Link href="/dashboard/servicios" className="btn btn-sm btn-primary">Crear servicio</Link>
+              )}
+            </li>
+
+            {/* Step 2: Definir horario */}
+            <li className="cluster gap-2" style={{ alignItems: 'flex-start' }}>
+              <span
+                className="cluster"
+                style={{
+                  width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                  background: hasHours ? 'var(--success, #22c55e)' : 'var(--surface-2)',
+                  color: hasHours ? '#fff' : 'var(--text-muted)',
+                  fontWeight: 700, justifyContent: 'center', fontSize: '0.85rem',
+                }}
+              >
+                {hasHours ? '✓' : '2'}
+              </span>
+              <div className="stack gap-0" style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600 }}>Define tu horario</span>
+                <span className="text-sm muted">Elegí los días y horas en que atendés.</span>
+              </div>
+              {!hasHours && (
+                <Link href="/dashboard/horario" className="btn btn-sm btn-primary">Configurar horario</Link>
+              )}
+            </li>
+
+            {/* Step 3: Compartir link */}
+            <li className="cluster gap-2" style={{ alignItems: 'flex-start' }}>
+              <span
+                className="cluster"
+                style={{
+                  width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                  background: stepsComplete ? 'var(--success, #22c55e)' : 'var(--surface-2)',
+                  color: stepsComplete ? '#fff' : 'var(--text-muted)',
+                  fontWeight: 700, justifyContent: 'center', fontSize: '0.85rem',
+                }}
+              >
+                {stepsComplete ? '✓' : '3'}
+              </span>
+              <div className="stack gap-0" style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600 }}>Compartí tu link</span>
+                <span className="text-sm muted">Pásalo a tus clientes para que reserven solos.</span>
+              </div>
+            </li>
+          </ol>
         </div>
       )}
 
+      {/* TARJETA "Tu link de reservas" — se muestra cuando NO hay onboarding pendiente */}
+      {!needsSetup && (
+        <div className="panel stack">
+          <label className="text-sm muted" style={{ fontWeight: 600 }}>Tu link de reservas</label>
+          <p className="text-sm muted" style={{ marginTop: 0 }}>
+            Compartelo en Instagram, WhatsApp o pegalo impreso en tu local.
+          </p>
+
+          <div className="cluster gap-2" style={{ flexWrap: 'wrap' }}>
+            <code
+              className="text-sm"
+              style={{
+                background: 'var(--surface-2)',
+                padding: '0.4rem 0.75rem',
+                borderRadius: 'var(--radius-sm)',
+                flex: 1,
+                overflowX: 'auto',
+                whiteSpace: 'nowrap',
+                minWidth: 200,
+              }}
+            >
+              {bookUrl}
+            </code>
+            <button className="btn btn-sm" onClick={handleCopy}>
+              {copied ? 'Copiado' : 'Copiar'}
+            </button>
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-primary">
+              Compartir por WhatsApp
+            </a>
+          </div>
+
+          {/* QR */}
+          <div className="cluster gap-2" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <img
+              src={getQrImageUrl(bookUrl, 200)}
+              alt={`Código QR de ${bookUrl}`}
+              width={160}
+              height={160}
+              style={{ borderRadius: 'var(--radius-sm)' }}
+            />
+            <div className="stack gap-1">
+              <button className="btn btn-sm" onClick={handleDownloadQr}>
+                Descargar QR
+              </button>
+              {qrError && <span className="text-sm error-text">No se pudo descargar. Intenta de nuevo.</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KPIs */}
       <div className="grid grid-sm-2">
         <div className="panel kpi">
           <span className="label">Citas de hoy</span>
@@ -67,29 +205,8 @@ export default function DashboardHomeClient({
         </div>
       </div>
 
-      <div className="panel stack">
-        <label className="text-sm muted" style={{ fontWeight: 600 }}>Tu link para reservar</label>
-        <div className="cluster gap-2">
-          <code
-            className="text-sm"
-            style={{
-              background: 'var(--surface-2)',
-              padding: '0.4rem 0.75rem',
-              borderRadius: 'var(--radius-sm)',
-              flex: 1,
-              overflowX: 'auto',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {bookUrl}
-          </code>
-          <button className="btn btn-sm" onClick={handleCopy}>
-            {copied ? '¡Copiado!' : 'Copiar'}
-          </button>
-        </div>
-      </div>
-
-      <div className="cluster">
+      {/* Acciones rápidas */}
+      <div className="cluster" style={{ flexWrap: 'wrap' }}>
         <Link href="/dashboard/agenda" className="btn btn-primary">Ver agenda de hoy</Link>
         <Link href="/dashboard/servicios" className="btn btn-ghost">Gestionar servicios</Link>
         <Link href="/dashboard/horario" className="btn btn-ghost">Configurar horario</Link>
