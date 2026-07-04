@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getQrImageUrl, downloadQr } from '@/lib/qr';
+import { getQrDataUrl, downloadQr } from '@/lib/qr';
 
 export default function DashboardHomeClient({
   orgName,
@@ -23,12 +23,20 @@ export default function DashboardHomeClient({
 }) {
   const [copied, setCopied] = useState(false);
   const [qrError, setQrError] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [noShowCount, setNoShowCount] = useState<number | null>(null);
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || '';
   const bookUrl = siteUrl
     ? `${siteUrl}/book/${slug}`
     : (typeof window !== 'undefined' ? `${window.location.origin}/book/${slug}` : `/book/${slug}`);
+
+  useEffect(() => {
+    if (!bookUrl) return;
+    getQrDataUrl(bookUrl, 200)
+      .then(setQrDataUrl)
+      .catch(() => setQrError(true));
+  }, [bookUrl]);
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -59,7 +67,7 @@ export default function DashboardHomeClient({
     }
   };
 
-  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Hola! Reservá tu cita en ${orgName} acá: ${bookUrl}`)}`;
+  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`¡Hola! Reserva tu cita en ${orgName} aquí: ${bookUrl}`)}`;
 
   // Steps completion
   const stepsComplete = hasServices && hasHours;
@@ -71,9 +79,9 @@ export default function DashboardHomeClient({
       {/* ONBOARDING — solo si falta configurar servicios u horario */}
       {needsSetup && (
         <div className="card stack">
-          <h2 style={{ marginBottom: 0 }}>Dejá tu agenda lista</h2>
+          <h2 style={{ marginBottom: 0 }}>Deja tu agenda lista</h2>
           <p className="text-sm muted" style={{ marginTop: 0 }}>
-            Completá estos 3 pasos para empezar a recibir reservas online.
+            Completa estos 3 pasos para empezar a recibir reservas online.
           </p>
 
           <ol className="steps stack gap-2" style={{ listStyle: 'none', padding: 0 }}>
@@ -92,7 +100,7 @@ export default function DashboardHomeClient({
               </span>
               <div className="stack gap-0" style={{ flex: 1 }}>
                 <span style={{ fontWeight: 600 }}>Crea tu primer servicio</span>
-                <span className="text-sm muted">Definí qué ofrecés, su duración y precio.</span>
+                <span className="text-sm muted">Define qué ofreces, su duración y precio.</span>
               </div>
               {!hasServices && (
                 <Link href="/dashboard/servicios" className="btn btn-sm btn-primary">Crear servicio</Link>
@@ -114,7 +122,7 @@ export default function DashboardHomeClient({
               </span>
               <div className="stack gap-0" style={{ flex: 1 }}>
                 <span style={{ fontWeight: 600 }}>Define tu horario</span>
-                <span className="text-sm muted">Elegí los días y horas en que atendés.</span>
+                <span className="text-sm muted">Elige los días y horas en que atiendes.</span>
               </div>
               {!hasHours && (
                 <Link href="/dashboard/horario" className="btn btn-sm btn-primary">Configurar horario</Link>
@@ -135,7 +143,7 @@ export default function DashboardHomeClient({
                 {stepsComplete ? '✓' : '3'}
               </span>
               <div className="stack gap-0" style={{ flex: 1 }}>
-                <span style={{ fontWeight: 600 }}>Compartí tu link</span>
+                <span style={{ fontWeight: 600 }}>Comparte tu link</span>
                 <span className="text-sm muted">Pásalo a tus clientes para que reserven solos.</span>
               </div>
             </li>
@@ -148,7 +156,7 @@ export default function DashboardHomeClient({
         <div className="panel stack">
           <label className="text-sm muted" style={{ fontWeight: 600 }}>Tu link de reservas</label>
           <p className="text-sm muted" style={{ marginTop: 0 }}>
-            Compartelo en Instagram, WhatsApp o pegalo impreso en tu local.
+            Compártelo en Instagram, WhatsApp o pégalo impreso en tu local.
           </p>
 
           <div className="cluster gap-2" style={{ flexWrap: 'wrap' }}>
@@ -174,20 +182,30 @@ export default function DashboardHomeClient({
             </a>
           </div>
 
-          {/* QR */}
+          {/* QR (generado localmente, sin depender de servicios externos) */}
           <div className="cluster gap-2" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            <img
-              src={getQrImageUrl(bookUrl, 200)}
-              alt={`Código QR de ${bookUrl}`}
-              width={160}
-              height={160}
-              style={{ borderRadius: 'var(--radius-sm)' }}
-            />
+            {qrDataUrl ? (
+              <img
+                src={qrDataUrl}
+                alt={`Código QR de ${bookUrl}`}
+                width={160}
+                height={160}
+                style={{ borderRadius: 'var(--radius-sm)' }}
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                style={{
+                  width: 160, height: 160, borderRadius: 'var(--radius-sm)',
+                  background: 'var(--surface-2)',
+                }}
+              />
+            )}
             <div className="stack gap-1">
-              <button className="btn btn-sm" onClick={handleDownloadQr}>
+              <button className="btn btn-sm" onClick={handleDownloadQr} disabled={!qrDataUrl}>
                 Descargar QR
               </button>
-              {qrError && <span className="text-sm error-text">No se pudo descargar. Intenta de nuevo.</span>}
+              {qrError && <span className="text-sm error-text">No se pudo generar el QR. Intenta de nuevo.</span>}
             </div>
           </div>
         </div>

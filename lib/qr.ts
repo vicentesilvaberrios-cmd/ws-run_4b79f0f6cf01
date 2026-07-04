@@ -1,27 +1,18 @@
 /**
- * QR code utilities — no external npm dependencies.
- * Uses the qrserver.com API to generate QR images.
+ * QR code utilities — generado 100% local (librería 'qrcode', sin llamadas a terceros).
  */
+import QRCode from 'qrcode';
 
-export function getQrImageUrl(url: string, size = 200): string {
-  const params = new URLSearchParams({
-    size: `${size}x${size}`,
-    data: url,
-    margin: '0',
-  });
-  return `https://api.qrserver.com/v1/create-qr-code/?${params}`;
+export async function getQrDataUrl(url: string, size = 200): Promise<string> {
+  return QRCode.toDataURL(url, { width: size, margin: 1 });
 }
 
 export async function downloadQr(url: string, filename = 'qr-reservas.png'): Promise<void> {
-  const res = await fetch(getQrImageUrl(url, 512));
-  if (!res.ok) throw new Error('No se pudo generar el QR');
-  const blob = await res.blob();
-  const objUrl = URL.createObjectURL(blob);
+  const dataUrl = await QRCode.toDataURL(url, { width: 512, margin: 1 });
   const a = document.createElement('a');
-  a.href = objUrl;
+  a.href = dataUrl;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(objUrl);
 }
